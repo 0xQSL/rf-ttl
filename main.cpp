@@ -2,6 +2,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -74,6 +75,9 @@ int abort(char **argv){
 	fprintf(stderr,"   -d   serial port\n");
 	fprintf(stderr,"   -o   Write permanent\n");
 	fprintf(stderr,"   -f   <0-1> FEC\n");
+	fprintf(stderr,"   -m   <0-1> Fixed/Transparant transmission mode\n");
+	fprintf(stderr,"   -u   <0-255> Upper address byte\n");
+	fprintf(stderr,"   -l   <0-255> Lower address byte\n");
 	fprintf(stderr,"   -w   Waiting time\n");
 	fprintf(stderr,"   -c <channel>  Communication channel 0-31\n");
 	fprintf(stderr,"   -p   <0-3> Output power 0-3 (0=30dBm - 3=21dBm)\n");
@@ -312,6 +316,11 @@ int main(int argc, char **argv){
 	int airspeed=-1;
 	int uartspeed=-1;
 	int fec=-1;
+	int fixed=-1;
+	bool addr_h_set = false;
+	bool addr_l_set = false;
+	uint8_t addr_h=0;
+	uint8_t addr_l=0;
 	char buffer [100];
 	int count;
 	char mask;
@@ -320,7 +329,7 @@ int main(int argc, char **argv){
 	memset(port,0,sizeof(port));
 
 	opterr = 0;
-	while ((c = getopt (argc, argv, ":hof:wc:p:a:s:d:")) != -1){
+	while ((c = getopt (argc, argv, ":hof:wc:p:a:s:d:m:u:l:")) != -1){
 		switch (c)
 		{
 			case 'f'://FEC
@@ -345,6 +354,17 @@ int main(int argc, char **argv){
 				break;
 			case 'd':
 				strcpy(port,optarg);
+				break;
+			case 'm':
+				fixed = atoi(optarg);
+				break;
+			case 'u':
+			    addr_h_set = true;
+				addr_h = atoi(optarg);
+				break;
+			case 'l':
+			    addr_l_set = true;
+				addr_l = atoi(optarg);
 				break;
 			case '?':
 				if (optopt == 'c')
@@ -436,6 +456,14 @@ int main(int argc, char **argv){
 		buffer[3]|= (uartspeed<<3) & mask;
 	}
 
+	if(addr_h_set){
+	    buffer[1]= addr_h;
+    }
+
+	if(addr_l_set){
+	    buffer[2]= addr_l;
+    }
+
 	if(power>=0){
 		mask=0x03;
 		buffer[0]=header;
@@ -463,6 +491,13 @@ int main(int argc, char **argv){
 		buffer[0]=header;
 		buffer[5]&= ~mask;
 		buffer[5]|= (fec<<2) & mask;
+	}
+
+	if(fixed>=0){
+		mask=0x80;
+		buffer[0]=header;
+		buffer[5]&= ~mask;
+		buffer[5]|= (fixed<<7) & mask;
 	}
 
 	if((buffer[0] & 0xff)==(header & 0xff)){
